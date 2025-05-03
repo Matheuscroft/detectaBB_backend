@@ -3,6 +3,7 @@ from flask import Flask
 from flask_cors import CORS
 from app.database import db 
 from app.routes.boleto_route import boleto_bp
+from app.routes.auth_route import auth_bp
 
 
 def create_app():
@@ -18,5 +19,6 @@ def create_app():
         db.create_all() 
 
     app.register_blueprint(boleto_bp)
+    app.register_blueprint(auth_bp)
 
     return app
