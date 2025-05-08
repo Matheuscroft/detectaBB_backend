@@ -7,3 +7,10 @@ scikit-learn
 pandas
 python-dotenv
 PyJWT>=2.0.0
+Flask
+Flask-Cors
+Flask-SQLAlchemy
+pytesseract
+pillow
+pdf2image
+pikepdf
