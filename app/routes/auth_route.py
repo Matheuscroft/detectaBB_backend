@@ -71,3 +71,24 @@ def get_user_data(current_user):
         "nome": current_user.nome,
         "email": current_user.email
     }), 200
+
+@auth_bp.route("/recover-password", methods=["PUT"])
+def recover_password():
+    data = request.get_json()
+    email = data.get("email")
+    nova_senha = data.get("nova_senha")
+
+    if not email or not nova_senha:
+        return jsonify({"error": "Campos obrigatórios ausentes"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"error": "Usuário não encontrado"}), 404
+
+    if user.check_password(nova_senha):
+        return jsonify({"error": "A nova senha não pode ser igual à senha atual"}), 400
+
+    user.set_password(nova_senha)
+    db.session.commit()
+
+    return jsonify({"message": "Senha redefinida com sucesso!"}), 200
