@@ -5,6 +5,62 @@ import pikepdf
 import io
 import re
 
+import unicodedata
+
+def normalizar(texto):
+    return unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("ASCII").lower()
+
+def identificar_banco_automatico(texto_ocr: str, bancos: dict) -> str | None:
+    texto_normalizado = normalizar(texto_ocr)
+    melhor_banco = None
+    maior_score = 0
+
+    for nome_banco in bancos:
+        nome_normalizado = normalizar(nome_banco)
+        palavras_banco = nome_normalizado.split()
+        score = sum(1 for palavra in palavras_banco if palavra in texto_normalizado)
+
+        if score > maior_score or (score == maior_score and melhor_banco and len(nome_banco) > len(melhor_banco)):
+            melhor_banco = nome_banco
+            maior_score = score
+
+    return melhor_banco if maior_score > 0 else None
+
+import re
+
+def extrair_agencia(texto_extraido: str) -> str | None:
+    linhas = texto_extraido.splitlines()
+
+    for i, linha in enumerate(linhas):
+
+        print(f"🔍 Linha {i}: {linha}")
+
+        if "Agência" in linha:
+            print(f"✅ Encontrado 'agencia' na linha {i}: {linha}")
+
+            for j in range(i + 1, min(i + 3, len(linhas))):
+                trecho = linhas[j].strip()
+                print(f"  ▶ Verificando linha {j}: {trecho}")
+
+                match1 = re.search(r'(\d{4})-\d\s*/\s*\d+', trecho)
+                if match1:
+                    print(f"    🎯 Match com hífen e barra: {match1.group(0)}")
+                    return match1.group(1)
+
+                match2 = re.search(r'(\d{4})\s*/\s*\d+', trecho)
+                if match2:
+                    print(f"    🎯 Match com barra simples: {match2.group(0)}")
+                    return match2.group(1)
+
+    match_fallback = re.search(r'Ag[êe]ncia.*?(\d{4})\s*/\s*\d+', texto_extraido, flags=re.IGNORECASE)
+    if match_fallback:
+        print(f"🔁 Fallback match: {match_fallback.group(0)}")
+        return match_fallback.group(1)
+
+    print("🚫 Nenhuma agência encontrada.")
+    return None
+
+
 bancos = {
     "Santander": "033",
     "Bradesco": "237",
@@ -54,13 +110,7 @@ def perform_ocr(file, password=None):
 
 def parse_ocr_text(texto_extraido: str):
     """Processa o texto extraído e separa os dados relevantes."""
-
-    banco = None
-    texto_minusculo = texto_extraido.lower()
-    for nome_banco in bancos:
-        if nome_banco.lower() in texto_minusculo:
-            banco = nome_banco
-            break
+    banco = identificar_banco_automatico(texto_extraido, bancos)
 
     codigo_banco = None
     linhas = texto_extraido.splitlines()
@@ -75,19 +125,18 @@ def parse_ocr_text(texto_extraido: str):
         if codigo_banco_match:
             codigo_banco = codigo_banco_match.group(1)
 
-    linha_digitavel_match = re.search(r'(\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14})', texto_extraido)
+    texto_linha_temp = texto_extraido.upper()
+    texto_linha_temp = texto_linha_temp.replace('O', '0').replace('I', '1').replace('L', '1').replace('|', '1')
+
+    linha_digitavel_match = re.search(r'(\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14})', texto_linha_temp)
     if not linha_digitavel_match:
-        linha_digitavel_match = re.search(r'(\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d{1}\s\d{14})', texto_extraido)
+        linha_digitavel_match = re.search(r'(\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d{1}\s\d{14})', texto_linha_temp)
     linha_digitavel = linha_digitavel_match.group(0).replace(" ", "") if linha_digitavel_match else None
 
     valor_doc_match = re.search(r'Valor do Documento:.*?R\$\s?([\d,.]+)', texto_extraido, re.DOTALL)
     valor = valor_doc_match.group(1).replace('.', '').replace(',', '.') if valor_doc_match else None
 
-    agencia_match = re.search(r'Ag[êe]ncia\/C[óo]digo Benefici[áa]rio:\s*(\d{4})', texto_extraido)
-    if not agencia_match:
-        agencia_match = re.search(r'(\d{4})\s*/\s*\d+', texto_extraido)
-
-    agencia = agencia_match.group(1) if agencia_match else None
+    agencia = extrair_agencia(texto_extraido)
 
     return {
         "banco": banco,
