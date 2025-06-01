@@ -8,7 +8,7 @@ from app.routes.auth_route import auth_bp
 
 def create_app():
     app = Flask(__name__)
-    CORS(app, origins=["http://localhost:8100"])
+    CORS(app, origins=["http://localhost:8100", "https://detecta-bb.vercel.app/"])
 
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
