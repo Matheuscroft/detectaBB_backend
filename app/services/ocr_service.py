@@ -1,4 +1,4 @@
-import pytesseract
+import os, pytesseract
 from PIL import Image
 from pdf2image import convert_from_bytes
 import fitz
@@ -6,6 +6,10 @@ import pikepdf
 import io
 import re
 import unicodedata
+tess_path = os.environ.get("TESSERACT_CMD")
+
+if tess_path:
+    pytesseract.pytesseract.tesseract_cmd = tess_path
 
 def normalizar(texto):
     return unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("ASCII").lower()
@@ -238,9 +242,16 @@ def perform_ocr(file, password=None):
         except pikepdf._qpdf.PasswordError:
             raise Exception("Senha incorreta para desbloquear o PDF.")
 
+   # if file.filename.lower().endswith('.pdf'):
+       # img = pdf_para_imagem_pymupdf(file_bytes)
+      #  ocr_result = pytesseract.image_to_string(img, lang='por')
+
     if file.filename.lower().endswith('.pdf'):
-        img = pdf_para_imagem_pymupdf(file_bytes)
-        ocr_result = pytesseract.image_to_string(img, lang='por')
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        page = doc.load_page(0)
+        pix = page.get_pixmap(alpha=False)
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
+        doc.close()
     else:
         img = Image.open(io.BytesIO(file_bytes))
         ocr_result = pytesseract.image_to_string(img, lang='por')
