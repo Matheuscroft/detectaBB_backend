@@ -1,10 +1,10 @@
 import pytesseract
 from PIL import Image
 from pdf2image import convert_from_bytes
+import fitz
 import pikepdf
 import io
 import re
-
 import unicodedata
 
 def normalizar(texto):
@@ -47,7 +47,6 @@ def extrair_agencia(texto_extraido: str) -> str | None:
     linhas = texto_extraido.splitlines()
 
     for i, linha in enumerate(linhas):
-
         if "Agência" in linha:
             for j in range(i + 1, min(i + 3, len(linhas))):
                 trecho = linhas[j].strip()
@@ -92,7 +91,7 @@ def buscar_codigo_banco(texto: str, banco: str, linha_digitavel: str = None) -> 
                 codigo_bruto = match.group(1)
                 codigo_banco = codigo_bruto[-3:]
                 return codigo_banco
-            
+
     return None
 
 def parse_valor(valor_str: str) -> float | None:
@@ -114,7 +113,6 @@ def parse_valor(valor_str: str) -> float | None:
         return float(valor_str)
     except:
         return None
-
 
 def extrair_valor(texto: str) -> float | None:
     linhas = texto.splitlines()
@@ -153,7 +151,6 @@ def extrair_valor(texto: str) -> float | None:
             if valor_float is not None:
                 valores_encontrados.append(valor_float)
 
-
     def valor_valido(v):
         return isinstance(v, (int, float)) and v > 0
 
@@ -188,7 +185,13 @@ def corrigir_linha_digitavel(linha: str) -> str:
     elif len(so_digitos) != 47:
         print("⚠️ Atenção: linha digitável fora do padrão esperado.")
 
-    return f"{so_digitos[0:5]}.{so_digitos[5:10]} {so_digitos[10:15]}.{so_digitos[15:21]} {so_digitos[21:26]}.{so_digitos[26:32]} {so_digitos[32]} {so_digitos[33:]}"
+    return (
+        f"{so_digitos[0:5]}.{so_digitos[5:10]} "
+        f"{so_digitos[10:15]}.{so_digitos[15:21]} "
+        f"{so_digitos[21:26]}.{so_digitos[26:32]} "
+        f"{so_digitos[32]} "
+        f"{so_digitos[33:]}"
+    )
 
 bancos = {
     "Santander": "033",
@@ -206,31 +209,40 @@ mapeamento_bancos = {
     "Caixa Econômica": 4
 }
 
+def pdf_para_imagem_pymupdf(pdf_bytes: bytes) -> Image.Image:
+    """
+    Converte o primeiro página do PDF em objeto PIL.Image usando PyMuPDF.
+    """
+    documento = fitz.open(stream=pdf_bytes, filetype="pdf")
+    pagina = documento.load_page(0)
+    pix = pagina.get_pixmap(alpha=False)
+    img_bytes = pix.tobytes("png")
+    documento.close()
+    return Image.open(io.BytesIO(img_bytes))
+
 def perform_ocr(file, password=None):
+    """
+    Função principal de OCR, agora usando PyMuPDF em vez de Poppler.
+    Mantém o mesmo nome e estrutura, mas faz a conversão de PDF → imagem
+    via PyMuPDF.
+    """
+    file_bytes = file.read()
+
+    if password:
+        try:
+            pdf = pikepdf.open(io.BytesIO(file_bytes), password=password)
+            unlocked = io.BytesIO()
+            pdf.save(unlocked)
+            pdf.close()
+            file_bytes = unlocked.getvalue()
+        except pikepdf._qpdf.PasswordError:
+            raise Exception("Senha incorreta para desbloquear o PDF.")
+
     if file.filename.lower().endswith('.pdf'):
-        file_bytes = file.read()
-
-        if password:
-            try:
-                pdf = pikepdf.open(io.BytesIO(file_bytes), password=password)
-                unlocked_bytes = io.BytesIO()
-                pdf.save(unlocked_bytes)
-                pdf.close()
-                file_bytes = unlocked_bytes.getvalue()
-            except pikepdf._qpdf.PasswordError:
-                raise Exception("Senha incorreta para desbloquear o PDF.")
-
-        poppler_path = r'C:\poppler-24.08.0\Library\bin'
-
-        images = convert_from_bytes(file_bytes, poppler_path=poppler_path)
-
-        if images:
-            img = images[0]  
-            ocr_result = pytesseract.image_to_string(img, lang='por')
-        else:
-            raise Exception("Não foi possível converter o PDF em imagem.")
+        img = pdf_para_imagem_pymupdf(file_bytes)
+        ocr_result = pytesseract.image_to_string(img, lang='por')
     else:
-        img = Image.open(file)
+        img = Image.open(io.BytesIO(file_bytes))
         ocr_result = pytesseract.image_to_string(img, lang='por')
 
     return {
@@ -265,7 +277,7 @@ def parse_ocr_text(texto_extraido: str):
 
 def preparar_para_predicao(parsed_data: dict):
     linha = parsed_data.get('linha_digitavel', '')
-    
+
     if linha:
         linha = linha.replace(" ", "")
         linha_codBanco = int(linha[0:3]) if len(linha) >= 3 else None
