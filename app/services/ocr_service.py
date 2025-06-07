@@ -254,7 +254,8 @@ def perform_ocr(file, password=None):
         doc.close()
     else:
         img = Image.open(io.BytesIO(file_bytes))
-        ocr_result = pytesseract.image_to_string(img, lang='por')
+
+    ocr_result = pytesseract.image_to_string(img, lang='por')
 
     return {
         "texto_extraido": ocr_result
