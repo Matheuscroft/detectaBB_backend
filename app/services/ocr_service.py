@@ -230,7 +230,11 @@ def perform_ocr(file, password=None):
     Mantém o mesmo nome e estrutura, mas faz a conversão de PDF → imagem
     via PyMuPDF.
     """
+    print("🚀 perform_ocr iniciado")
     file_bytes = file.read()
+
+    print(f"📂 Arquivo recebido: tamanho = {len(file.read())} bytes")
+    file.seek(0)
 
     if password:
         try:

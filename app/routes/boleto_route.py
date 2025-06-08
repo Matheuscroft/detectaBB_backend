@@ -113,6 +113,7 @@ def delete_boleto(id):
 
 @boleto_bp.route("/upload", methods=["POST"])
 def upload_boleto():
+    print("📥 Rota /boleto/upload chamada")
     try:
         image = request.files.get('image')
         password = request.form.get('password')
