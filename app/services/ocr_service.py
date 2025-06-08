@@ -242,20 +242,21 @@ def perform_ocr(file, password=None):
         except pikepdf._qpdf.PasswordError:
             raise Exception("Senha incorreta para desbloquear o PDF.")
 
-   # if file.filename.lower().endswith('.pdf'):
-       # img = pdf_para_imagem_pymupdf(file_bytes)
-      #  ocr_result = pytesseract.image_to_string(img, lang='por')
-
     if file.filename.lower().endswith('.pdf'):
-        doc = fitz.open(stream=file_bytes, filetype="pdf")
-        page = doc.load_page(0)
-        pix = page.get_pixmap(alpha=False)
-        img = Image.open(io.BytesIO(pix.tobytes("png")))
-        doc.close()
+        img = pdf_para_imagem_pymupdf(file_bytes)
+        ocr_result = pytesseract.image_to_string(img, lang='por')
+
+    #if file.filename.lower().endswith('.pdf'):
+     #   doc = fitz.open(stream=file_bytes, filetype="pdf")
+      #  page = doc.load_page(0)
+       # pix = page.get_pixmap(alpha=False)
+        #img = Image.open(io.BytesIO(pix.tobytes("png")))
+        #doc.close()
     else:
         img = Image.open(io.BytesIO(file_bytes))
+        ocr_result = pytesseract.image_to_string(img, lang='por')
 
-    ocr_result = pytesseract.image_to_string(img, lang='por')
+    
 
     return {
         "texto_extraido": ocr_result
